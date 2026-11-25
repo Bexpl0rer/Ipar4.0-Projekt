@@ -16,8 +16,8 @@ from soil_model import SoilState, advance_hour
 
 state = SoilState()
 step = advance_hour(state, valve_open=True)
-print([float(value) for value in step.state.water_mm])  # [19.77, 19.76, 19.7]
-print(step.applied_water_l)  # 6
+print(step.state.water_mm)  # (19.77, 19.76, 19.7)
+print(step.applied_water_l)  # 6.0
 ```
 
 A 168 órás futás 07:00-kor kezdődik. Minden zóna 1 m² területű, 18 mm vízzel
@@ -25,8 +25,9 @@ indul, és legfeljebb 30 mm-t tárol. A nappali alapveszteség zónánként
 0,23 / 0,24 / 0,30 mm/óra, az éjszakai veszteség 0,04 / 0,04 / 0,05 mm/óra.
 A hétnapos időjárási profil csak a nappali veszteséget módosítja. Egy nyitási
 parancs 2 mm vizet juttat minden zónára, vagyis összesen 6 litert. A készletet a
-modell 0 és 30 mm között tartja. A teljes kijuttatott víz beleszámít a
-vízfogyasztásba akkor is, ha egy zóna eléri a tárolási határát. A számok
+modell 0 és 30 mm között tartja, és minden órában 0,0001 mm felbontásra
+kerekíti. A teljes kijuttatott víz beleszámít a vízfogyasztásba akkor is, ha
+egy zóna eléri a tárolási határát. A számok
 szimulációs paraméterek, növény- és talajspecifikus kalibrálás nélkül.
 
 ## Ellenőrzés
