@@ -11,7 +11,6 @@ DAYTIME_LOSS_MM = (0.23, 0.24, 0.30)
 NIGHTTIME_LOSS_MM = (0.04, 0.04, 0.05)
 DAYLIGHT_FACTORS = (1.00, 0.75, 0.65, 1.00, 1.10, 1.05, 0.80)
 SIMULATION_HOURS = 24 * len(DAYLIGHT_FACTORS)
-# The hourly losses and daylight factors each have up to two decimal places.
 WATER_PRECISION = 4
 
 
