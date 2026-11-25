@@ -55,7 +55,7 @@ def advance_hour(state: SoilState, *, valve_open: bool) -> SoilStep:
 
     added_mm = IRRIGATION_DEPTH_MM if valve_open else 0.0
     next_water_mm = tuple(
-        min(CAPACITY_MM, max(0.0, water - loss + added_mm))
+        min(CAPACITY_MM, max(0.0, round(water - loss + added_mm,WATER_PRECISION)))
         for water, loss in zip(state.water_mm, loss_mm)
     )
     return SoilStep(
