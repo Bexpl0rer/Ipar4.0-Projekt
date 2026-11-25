@@ -3,6 +3,7 @@ import unittest
 from soil_model import (
     CAPACITY_MM,
     SIMULATION_HOURS,
+    WATER_PRECISION,
     SoilState,
     advance_hour,
 )
