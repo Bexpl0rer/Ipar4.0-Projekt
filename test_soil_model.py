@@ -3,7 +3,6 @@ import unittest
 from soil_model import (
     CAPACITY_MM,
     SIMULATION_HOURS,
-    WATER_PRECISION,
     SoilState,
     advance_hour,
 )
@@ -69,7 +68,7 @@ class SoilModelTests(unittest.TestCase):
                             outside_target_hours[zone] += 1
 
                     if use_average:
-                        total_mm = round(sum(state.water_mm), WATER_PRECISION)
+                        total_mm = sum(state.water_mm)
                         valve_open = total_mm < 3 * threshold_mm
                     else:
                         valve_open = state.water_mm[1] < threshold_mm
