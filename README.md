@@ -1,109 +1,107 @@
 # Ipar4.0-Projekt
 
-Python-szimuláció egy háromzónás üvegházi ágyás öntözéséhez. A kísérletben
-egy közös szelep öntözi mindhárom zónát. A vezérlés az egyik futásban a 2. zóna
-mérése, a másikban a három zóna méréseinek átlaga alapján dönt.
+Python-szimuláció háromzónás üvegházi ágyás közös öntözőszeleppel. A két
+stratégia: a középső zóna mérése (single) és a három zóna méréseinek számtani
+átlaga (average). A szimuláció determinisztikus fizikai modellt, reprodukálható
+szenzorzajt és MQTT-alapú hiszterézises vezérlést használ.
 
 ## Talajmodell
 
-Az `advance_hour` egy szimulált órányi vízveszteséget és a közös szelep parancsát
-alkalmazza. A visszaadott állapotból kiolvasható a zónák vízkészlete milliméterben
-és a relatív modellnedvesség százalékban. A lépés külön visszaadja a kijuttatott
-vízmennyiséget literben.
+A 168 órás futás 07:00-kor kezdődik, 2016 darab öt modellperces lépésből áll.
+A program gyorsított szimuláció: nem vár öt valós percet a mérések között.
+Minden zóna 1 m² területű, kezdetben 18 mm vizet tartalmaz, legfeljebb 30 mm-t
+tárol. A százalékos nedvesség a modell tárolókapacitásához viszonyított
+vízkészlet, nem kalibrált térfogati talajnedvesség.
 
-```python
-from soil_model import SoilState, advance_hour
+Nappal (07:00–19:00) a zónák alapvesztesége 0,23 / 0,24 / 0,30 mm/óra,
+éjjel 0,04 / 0,04 / 0,05 mm/óra. A nappali veszteséget a hétnapos időjárási
+profil szorozza. Minden ötperces lépésben az óránkénti veszteség 1/12 része
+vonódik le. A számítás 8 tizedesjegyre kerekít, a készlet 0–30 mm között marad.
 
-state = SoilState()
-step = advance_hour(state, valve_open=True)
-print(step.state.water_mm)  # (19.77, 19.76, 19.7)
-print(step.applied_water_l)  # 6.0
+A teljes ágyás rögzített térfogatárama 0,1 L/perc (6 L/óra), a víz egyenlően
+oszlik meg a három zóna között. Egy nyitott szelepes lépés 5 percig tart,
+0,5 L-t juttat az ágyásra (zónánként 1/6 mm). A teljes vízfogyasztás a
+nyitvatartási idő percben és a térfogatáram szorzata. A kijuttatott víz akkor
+is beleszámít, ha a talaj már nem tudja teljes egészében eltárolni.
+Ezek szimulációs paraméterek, növény- és talajspecifikus kalibráció nélkül.
+
+A mért nedvességhez zónánként egyenletes eloszlású véletlen hibát adunk
+(alapértelmezetten ±0,5 százalékpont), 0–100% közé korlátozva. A zaj csak a
+mérést érinti, a tényleges vízkészletet nem. Mindkét módban minden időpontban
+mindhárom zónára generálunk zajt, ezért azonos seed esetén a zajsorozat
+megegyezik (a határértékeknél a levágás eltérhet).
+
+## MQTT és futtatás
+
+Python 3.9 vagy újabb és egy helyi Mosquitto broker szükséges. A repó
+gyökerében telepítsd a függőségeket:
+
+```powershell
+py -m pip install -r requirements.txt
 ```
 
-A 168 órás futás 07:00-kor kezdődik. Minden zóna 1 m² területű, 18 mm vízzel
-indul, és legfeljebb 30 mm-t tárol. A nappali alapveszteség zónánként
-0,23 / 0,24 / 0,30 mm/óra, az éjszakai veszteség 0,04 / 0,04 / 0,05 mm/óra.
-A hétnapos időjárási profil csak a nappali veszteséget módosítja. Egy nyitási
-parancs 2 mm vizet juttat minden zónára, vagyis összesen 6 litert. A készletet a
-modell 0 és 30 mm között tartja, és minden órában 0,0001 mm felbontásra
-kerekíti. A teljes kijuttatott víz beleszámít a vízfogyasztásba akkor is, ha
-egy zóna eléri a tárolási határát. A számok
-szimulációs paraméterek, növény- és talajspecifikus kalibrálás nélkül.
+Windows alatt, ha a Mosquitto szolgáltatás már fut, nem kell újabb brokert
+indítani. Egy terminálban indítsd a vezérlőt:
 
-## MQTT-adatút
-
-Futtatáshoz Python 3.9 vagy újabb és egy helyi Mosquitto broker kell. A repó
-gyökeréből telepítsd a Python-függőséget. Windowson a `python3` helyett a `py`
-parancsot használhatod.
-
-```bash
-python3 -m pip install -r requirements.txt
+```powershell
+py -m controller --lower-threshold 50 --upper-threshold 60
 ```
 
-Indítsd el a Mosquittót `mosquitto -p 1883` paranccsal. Dockerrel ugyanez egy
-külön terminálban így futtatható.
+A szelep kezdetben zárva van. A vezérlési érték az alsó küszöböt elérve vagy
+alulmúlva nyitja, a felső küszöböt elérve vagy meghaladva zárja a szelepet.
+A küszöbök között a korábban végrehajtott szelepállapot marad érvényben.
+A vezérlő minden ötperces mérésre állapotparancsot küld, nyitott állapotban
+az öntözés folyamatos marad a következő döntésig.
 
-```bash
-docker run --rm -p 127.0.0.1:1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
+A Listening on üzenet után másik terminálban futtasd mindkét stratégiát:
+
+```powershell
+py -m simulator --mode single --seed 42 --noise-pp 0.5 --output single.csv
+py -m simulator --mode average --seed 42 --noise-pp 0.5 --output average.csv
 ```
 
-Egy másik terminálban indítsd el a vezérlőt. Ha megjelent a `Listening on`
-üzenet, indítható a szimulátor.
+A szimulátor az irrigation/measurement témára publikálja az eltelt percet
+(minute), a futásazonosítót, a korábban végrehajtott szelepállapotot
+(valve_open) és a moisture_percent méréseket. Single módban csak a 2. zóna
+adata kerül az MQTT-üzenetbe, average módban mindháromé. A vezérlő az
+irrigation/command témára küldi a futásazonosítót, az eltelt percet, a döntési
+értéket és a kívánt valve_open állapotot. A visszajelzett előző állapot miatt
+a megismételt MQTT-mérések nem változtatják meg a döntést. A szimulátor
+csak az adott futáshoz és időponthoz tartozó első érvényes parancsra lép
+tovább; alapértelmezetten 5 valós másodperc után hibát jelez.
 
-```bash
-python3 -m controller --threshold 50
+A CSV ötpercenként tárolja a valódi és zajos méréseket, az előző és új
+szelepállapotot, az öntözési perceket, a litereket és a lépés utáni
+nedvességet. A program a végén összesíti a nyitvatartási időt, a vízfogyasztást
+és zónánként a szárazsági határ alatt eltöltött modellórákat. Az alapértelmezett
+szárazsági határ 40%, külön állítható a --dry-threshold kapcsolóval; a
+számítás az ötperces lépések elején mért valódi modellállapoton alapul,
+így az időtartam ötperces felbontású közelítés.
+
+Rövid, kétórás demonstráció szárazabb középső zónával:
+
+```powershell
+py -m simulator --mode single --hours 2 --initial-water-mm 18 14.5 18 --output demo.csv
 ```
 
-Egy harmadik terminálban futtasd le a két változatot.
+A zaj kikapcsolható a --noise-pp 0 kapcsolóval. A korábbi --threshold
+kapcsolót a --lower-threshold és --upper-threshold váltja fel.
 
-```bash
-python3 -m simulator --mode single --output single.csv
-python3 -m simulator --mode average --output average.csv
+## Tesztelés
+
+```powershell
+py -m unittest discover -v
 ```
 
-A szimulátor az `irrigation/measurement` témára publikálja az eltelt órát,
-a futásazonosítót és a `moisture_percent` méréseket. Egypontos módban csak a
-2. zóna mérését küldi, hárompontos módban mindháromét. A vezérlő az
-`irrigation/command` témára küldi vissza a futásazonosítót, az órát, a döntéshez
-használt nedvességet és a `valve_open` parancsot. A szelep akkor nyit, ha a
-döntési érték a küszöb alatt van. A szimulátor a futáshoz és az éppen várt órához
-tartozó első érvényes parancsra lép tovább. Ha 5 másodpercen belül nem érkezik
-hozzá ilyen parancs, a futás hibával véget ér. A CSV óránként rögzíti a döntést,
-a kijuttatott litereket és mindhárom zóna állapotát az öntözési lépés előtt és után.
-
-Kétórás demóhoz indítsd az egypontos szimulációt szárazabb 2. zónával.
-
-```bash
-python3 -m simulator --mode single --hours 2 --initial-water-mm 18 14.5 18 --output demo.csv
-```
-
-Az első sorban a szelep nyit, 6 liter kerül az ágyásra, a következő órában
-pedig a 2. zóna már a küszöb felett van. Az 55%-os heti összehasonlításhoz
-állítsd le a futó vezérlőt, és indítsd újra a `--threshold 55` kapcsolóval.
-
-## Ellenőrzés
-
-A tesztek a függőség telepítése után, a repó gyökeréből futtathatók.
-
-```bash
-python3 -m unittest discover -v
-```
-
-A tesztek ellenőrzik a vízmérleget, az időjárási profil alkalmazását, a
-tárolási határokat és a két öntözési stratégia teljes heti eredményét az 50%-os
-és 55%-os indítási küszöbnél. A céltartomány a tesztekben 40–75% relatív
-modellnedvesség.
-
-A teljes MQTT-integrációs teszthez csak a broker fusson. A teszt maga indítja
-a vezérlőt és a szimulátort. Linuxon és macOS-en így adható meg a broker portja.
-
-```bash
-MQTT_TEST_PORT=1883 python3 -m unittest discover -v
-```
-
-PowerShellben a port beállítása külön parancs.
+A tesztek ellenőrzik az ötperces vízmérleget, az eredeti óránkénti ráták
+megőrzését, a zajt, a tárolási határokat, a hiszterézist, a heti vezérlést
+és a vízfogyasztást. Az integrációs teszthez csak a broker fusson, a
+teszt saját vezérlőt és szimulátort indít:
 
 ```powershell
 $env:MQTT_TEST_PORT = '1883'
 py -m unittest discover -v
 ```
+
+Linuxon/macOS-en a py helyett python3, a környezeti változó pedig
+MQTT_TEST_PORT=1883 python3 -m unittest discover -v.
