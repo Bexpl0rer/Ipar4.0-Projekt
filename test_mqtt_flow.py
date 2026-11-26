@@ -17,6 +17,8 @@ from soil_model import (
 )
 
 BROKER_PORT = os.environ.get("MQTT_TEST_PORT")
+# Match child-process output encoding to the UTF-8 log and pipe readers on Windows.
+CHILD_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
 
 def measurement(values, previous=False, minute=0):
@@ -110,7 +112,7 @@ class MqttFlowTests(unittest.TestCase):
         with log_path.open("w", encoding="utf-8") as log, subprocess.Popen(
             [sys.executable, "-m", "controller", "--port", BROKER_PORT,
              "--lower-threshold", "50", "--upper-threshold", "60"],
-            stdout=log, stderr=subprocess.STDOUT,
+            stdout=log, stderr=subprocess.STDOUT, env=CHILD_ENV,
         ) as process:
             try:
                 deadline = monotonic() + 6
@@ -129,7 +131,7 @@ class MqttFlowTests(unittest.TestCase):
         return subprocess.run(
             [sys.executable, "-m", "simulator", "--port", BROKER_PORT,
              "--mode", mode, "--output", str(output), *options],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True, text=True, encoding="utf-8", env=CHILD_ENV, timeout=300,
         )
 
     def test_reference_week_over_mqtt(self):
