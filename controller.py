@@ -59,7 +59,7 @@ def main():
 
     try:
         with MqttLink(args.host, args.port, MEASUREMENT_TOPIC) as link:
-            print(f"Listening on {MEASUREMENT_TOPIC} ({args.lower_threshold:g}%–{args.upper_threshold:g}%)", flush=True)
+            print(f"Listening on {MEASUREMENT_TOPIC} ({args.lower_threshold:g}%-{args.upper_threshold:g}%)", flush=True)
             while True:
                 try:
                     measurement = link.receive(timeout=0.5)
